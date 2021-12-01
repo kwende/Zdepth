@@ -206,11 +206,13 @@ uint16_t AzureKinectDequantizeDepth(uint16_t quantized);
 
 // Quantize depth for a whole image
 void QuantizeDepthImage(
+    bool actuallyDoIt,
     int width,
     int height,
     const uint16_t* depth,
     std::vector<uint16_t>& quantized);
 void DequantizeDepthImage(
+    bool actuallyDoIt,
     int width,
     int height,
     const uint16_t* quantized,
@@ -275,12 +277,14 @@ public:
         int height,
         const uint16_t* unquantized_depth,
         std::vector<uint8_t>& compressed,
-        bool keyframe);
+        bool keyframe,
+        bool quantize);
 
     // Decompress buffer to depth array.
     // Resulting depth buffer is row-first, stride=width*2 (no surprises).
     // Returns DepthResult::Success if original depth can be recovered
     DepthResult Decompress(
+        bool quantized,
         const std::vector<uint8_t>& compressed,
         int& width,
         int& height,

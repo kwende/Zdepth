@@ -73,8 +73,8 @@ target_include_directories(zdepth PUBLIC
 
 # zdepth test application
 
-add_executable(zdepth_test tests/zdepth_test.cpp)
-target_link_libraries(zdepth_test PRIVATE zdepth)
+#add_executable(zdepth_test )
+#target_link_libraries(zdepth_test PRIVATE zdepth)
 
 
 ################################################################################

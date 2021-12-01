@@ -102,6 +102,7 @@ uint16_t AzureKinectDequantizeDepth(uint16_t quantized)
 }
 
 void QuantizeDepthImage(
+    bool actuallyDoIt,
     int width,
     int height,
     const uint16_t* depth,
@@ -111,12 +112,22 @@ void QuantizeDepthImage(
     quantized.resize(n);
     uint16_t* dest = quantized.data();
 
-    for (int i = 0; i < n; ++i) {
-        dest[i] = AzureKinectQuantizeDepth(depth[i]);
+    if (actuallyDoIt)
+    {
+        for (int i = 0; i < n; ++i) {
+            dest[i] = AzureKinectQuantizeDepth(depth[i]);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < n; ++i) {
+            dest[i] = depth[i];
+        }
     }
 }
 
 void DequantizeDepthImage(
+    bool actuallyDoIt,
     int width,
     int height,
     const uint16_t* quantized,
@@ -126,8 +137,17 @@ void DequantizeDepthImage(
     depth.resize(n);
     uint16_t* dest = depth.data();
 
-    for (int i = 0; i < n; ++i) {
-        dest[i] = AzureKinectDequantizeDepth(quantized[i]);
+    if (actuallyDoIt)
+    {
+        for (int i = 0; i < n; ++i) {
+            dest[i] = AzureKinectDequantizeDepth(quantized[i]);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < n; ++i) {
+            dest[i] = quantized[i];
+        }
     }
 }
 
@@ -332,7 +352,8 @@ DepthResult DepthCompressor::Compress(
     int height,
     const uint16_t* unquantized_depth,
     std::vector<uint8_t>& compressed,
-    bool keyframe)
+    bool keyframe, 
+    bool quantize)
 {
     // Enforce that image dimensions are multiples of the block size
     if(width % kBlockSize != 0 || height % kBlockSize != 0) {
@@ -346,7 +367,7 @@ DepthResult DepthCompressor::Compress(
     ++CompressedFrameNumber;
 
     // Quantize the depth image
-    QuantizeDepthImage(width, height, unquantized_depth, QuantizedDepth[CurrentFrameIndex]);
+    QuantizeDepthImage(quantize, width, height, unquantized_depth, QuantizedDepth[CurrentFrameIndex]);
 
     // Get depth for previous frame
     const uint16_t* depth = QuantizedDepth[CurrentFrameIndex].data();
@@ -576,6 +597,7 @@ void DepthCompressor::WriteCompressedFile(
 }
 
 DepthResult DepthCompressor::Decompress(
+    bool quantized,
     const std::vector<uint8_t>& compressed,
     int& width,
     int& height,
@@ -691,7 +713,7 @@ DepthResult DepthCompressor::Decompress(
         return DepthResult::Corrupted;
     }
 
-    DequantizeDepthImage(width, height, depth, depth_out);
+    DequantizeDepthImage(quantized, width, height, depth, depth_out);
     return DepthResult::Success;
 }
 
