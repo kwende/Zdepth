@@ -291,6 +291,72 @@ void Pad12(std::vector<uint16_t>& data)
     }
 }
 
+void Pad16(std::vector<uint16_t>& data)
+{
+    if (data.size() % 2 != 0) {
+        data.push_back(0);
+    }
+}
+
+void Pack16(
+    const std::vector<uint16_t>& unpacked,
+    std::vector<uint8_t>& packed)
+{
+    unsigned data_count = static_cast<unsigned>(unpacked.size());
+    packed.resize(data_count *2);
+
+    uint8_t* packed0 = packed.data();
+    uint8_t* packed1 = packed0 + data_count;
+
+    const uint16_t* data = unpacked.data();
+    const uint16_t* data_end = data + data_count;
+
+    while (data < data_end)
+    {
+        const uint16_t x = data[0];
+        const uint16_t y = data[1];
+        data += 2;
+
+        packed0[0] = static_cast<uint8_t>(x >> 8);
+        packed0[1] = static_cast<uint8_t>(y >> 8);
+        packed0 += 2;
+
+        packed1[0] = static_cast<uint8_t>((x & 0xff)); 
+        packed1[1] = static_cast<uint8_t>((y & 0xff)); 
+        packed1 +=2;
+    }
+}
+
+void Unpack16(
+    const std::vector<uint8_t>& packed,
+    std::vector<uint16_t>& unpacked)
+{
+    unsigned data_count = static_cast<unsigned>(packed.size()) * 1/2;
+    unpacked.resize(data_count);
+
+    const uint8_t* packed0 = packed.data();
+    const uint8_t* packed1 = packed0 + data_count;
+
+    uint16_t* data = unpacked.data();
+    const uint16_t* data_end = data + data_count;
+
+    while (data < data_end)
+    {
+        uint16_t x = static_cast<uint16_t>(packed0[0]) << 8;
+        uint16_t y = static_cast<uint16_t>(packed0[1]) << 8;
+        packed0 += 2;
+
+        x |= packed1[0];
+        y |= packed1[1];
+
+        packed1+=2;
+
+        data[0] = x;
+        data[1] = y;
+        data += 2;
+    }
+}
+
 void Pack12(
     const std::vector<uint16_t>& unpacked,
     std::vector<uint8_t>& packed)
@@ -384,23 +450,46 @@ DepthResult DepthCompressor::Compress(
 
     // Do Zstd compressions all together to keep the code cache hot:
 
-    Pad12(Surfaces);
-    Pack12(Surfaces, Packed);
-    Surfaces_UncompressedBytes = static_cast<unsigned>( Packed.size() );
-    ZstdCompress(Packed, SurfacesOut);
+    if (quantize)
+    {
+        Pad12(Surfaces);
+        Pack12(Surfaces, Packed);
+        Surfaces_UncompressedBytes = static_cast<unsigned>(Packed.size());
+        ZstdCompress(Packed, SurfacesOut);
 
-    Pad12(Edges);
-    Pack12(Edges, Packed);
-    Edges_UncompressedBytes = static_cast<unsigned>( Packed.size() );
-    ZstdCompress(Packed, EdgesOut);
+        Pad12(Edges);
+        Pack12(Edges, Packed);
+        Edges_UncompressedBytes = static_cast<unsigned>(Packed.size());
+        ZstdCompress(Packed, EdgesOut);
 
-    Zeroes_UncompressedBytes = static_cast<unsigned>( Zeroes.size() );
-    ZstdCompress(Zeroes, ZeroesOut);
+        Zeroes_UncompressedBytes = static_cast<unsigned>(Zeroes.size());
+        ZstdCompress(Zeroes, ZeroesOut);
 
-    Blocks_UncompressedBytes = static_cast<unsigned>( Blocks.size() );
-    ZstdCompress(Blocks, BlocksOut);
+        Blocks_UncompressedBytes = static_cast<unsigned>(Blocks.size());
+        ZstdCompress(Blocks, BlocksOut);
 
-    WriteCompressedFile(width, height, keyframe, compressed);
+        WriteCompressedFile(width, height, keyframe, compressed);
+    }
+    else
+    {
+        Pad16(Surfaces);
+        Pack16(Surfaces, Packed);
+        Surfaces_UncompressedBytes = static_cast<unsigned>(Packed.size());
+        ZstdCompress(Packed, SurfacesOut);
+
+        Pad16(Edges);
+        Pack16(Edges, Packed);
+        Edges_UncompressedBytes = static_cast<unsigned>(Packed.size());
+        ZstdCompress(Packed, EdgesOut);
+
+        Zeroes_UncompressedBytes = static_cast<unsigned>(Zeroes.size());
+        ZstdCompress(Zeroes, ZeroesOut);
+
+        Blocks_UncompressedBytes = static_cast<unsigned>(Blocks.size());
+        ZstdCompress(Blocks, BlocksOut);
+
+        WriteCompressedFile(width, height, keyframe, compressed);
+    }
 
     return DepthResult::Success;
 }
@@ -682,7 +771,15 @@ DepthResult DepthCompressor::Decompress(
     if (!success) {
         return DepthResult::Corrupted;
     }
-    Unpack12(Packed, Edges);
+
+    if (quantized)
+    {
+        Unpack12(Packed, Edges);
+    }
+    else
+    {
+        Unpack16(Packed, Edges); 
+    }
 
     success = ZstdDecompress(
         SurfacesData,
@@ -692,7 +789,15 @@ DepthResult DepthCompressor::Decompress(
     if (!success) {
         return DepthResult::Corrupted;
     }
-    Unpack12(Packed, Surfaces);
+
+    if (quantized)
+    {
+        Unpack12(Packed, Surfaces);
+    }
+    else
+    {
+        Unpack16(Packed, Surfaces);
+    }
 
     success = ZstdDecompress(
         BlocksData,

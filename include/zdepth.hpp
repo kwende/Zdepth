@@ -251,6 +251,7 @@ bool ZstdDecompress(
 
 // Pad data with a zero entry to make its length even
 void Pad12(std::vector<uint16_t>& data);
+void Pad16(std::vector<uint16_t>& data);
 
 // Pack 12-bit fields into bytes for Zstd compression.
 // Input must be a multiple of two in size
@@ -259,6 +260,14 @@ void Pack12(
     std::vector<uint8_t>& packed);
 
 void Unpack12(
+    const std::vector<uint8_t>& packed,
+    std::vector<uint16_t>& data);
+
+void Pack16(
+    const std::vector<uint16_t>& data,
+    std::vector<uint8_t>& packed);
+
+void Unpack16(
     const std::vector<uint8_t>& packed,
     std::vector<uint16_t>& data);
 
